@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: myacrs2022.azurecr.io
+        username: ${{ secrets.acr_myacrs2022_username }}
+        password: ${{ secrets.acr_myacrs2022_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/result" -f  "result/Dockerfile" -t myacrs2022.azurecr.io/myadks:${{ github.sha }} --label dockerfile-path=result/Dockerfile
+        docker push myacrs2022.azurecr.io/myadks:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_myadks_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep myadksb88f | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace myadksb88f`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: myadksb88f
+        container-registry-url: myacrs2022.azurecr.io
+        container-registry-username: ${{ secrets.acr_myacrs2022_username }}
+        container-registry-password: ${{ secrets.acr_myacrs2022_password }}
+        secret-name: myadksdockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: myadksb88f
+        manifests: |
+          manifests/deployment-3.yml
+          manifests/service-3.yml
+        images: |
+          myacrs2022.azurecr.io/myadks:${{ github.sha }}
+        imagepullsecrets: |
+          myadksdockerauth
