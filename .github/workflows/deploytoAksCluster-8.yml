@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: myaksacr2022.azurecr.io
+        username: ${{ secrets.acr_myaksacr2022_username }}
+        password: ${{ secrets.acr_myaksacr2022_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/result" -f  "result/Dockerfile" -t myaksacr2022.azurecr.io/myaks:${{ github.sha }} --label dockerfile-path=result/Dockerfile
+        docker push myaksacr2022.azurecr.io/myaks:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_myaks_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep myaksa9d9 | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace myaksa9d9`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: myaksa9d9
+        container-registry-url: myaksacr2022.azurecr.io
+        container-registry-username: ${{ secrets.acr_myaksacr2022_username }}
+        container-registry-password: ${{ secrets.acr_myaksacr2022_password }}
+        secret-name: myaksdockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: myaksa9d9
+        manifests: |
+          manifests/deployment-8.yml
+          manifests/service-8.yml
+        images: |
+          myaksacr2022.azurecr.io/myaks:${{ github.sha }}
+        imagepullsecrets: |
+          myaksdockerauth
