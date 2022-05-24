@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "myaskcluster1-06b1"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "myaskcluster1-06b1"
+  template:
+    metadata:
+      labels:
+        app: "myaskcluster1-06b1"
+    spec:
+      containers:
+        - name: "myaskcluster1-06b1"
+          image: "acr2votingapp.azurecr.io/myaskcluster1"
+          ports:
+          - containerPort: 80
