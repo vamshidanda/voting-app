@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: mywiproacr2023.azurecr.io
+        username: ${{ secrets.acr_mywiproacr2023_username }}
+        password: ${{ secrets.acr_mywiproacr2023_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/result" -f  "result/Dockerfile" -t mywiproacr2023.azurecr.io/aks2023:${{ github.sha }} --label dockerfile-path=result/Dockerfile
+        docker push mywiproacr2023.azurecr.io/aks2023:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_aks2023_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep aks2023abe5-pythonapp | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace aks2023abe5-pythonapp`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: aks2023abe5-pythonapp
+        container-registry-url: mywiproacr2023.azurecr.io
+        container-registry-username: ${{ secrets.acr_mywiproacr2023_username }}
+        container-registry-password: ${{ secrets.acr_mywiproacr2023_password }}
+        secret-name: aks2023dockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: aks2023abe5-pythonapp
+        manifests: |
+          manifests/deployment-11.yml
+          manifests/service-11.yml
+        images: |
+          mywiproacr2023.azurecr.io/aks2023:${{ github.sha }}
+        imagepullsecrets: |
+          aks2023dockerauth
