@@ -1,7 +1,7 @@
 Example Voting App
 =========
 
-Edited in test server
+Pushed to test branch
 
 A simple distributed application running across multiple Docker containers.
 
