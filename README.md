@@ -1,7 +1,7 @@
 Example Voting App
 =========
 
-Edited for test branch push
+Edited for master branch push
 
 A simple distributed application running across multiple Docker containers.
 
